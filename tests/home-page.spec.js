@@ -23,7 +23,7 @@ test("create shops", async ({page}) => {
   await page.getByPlaceholder("Short shop description").fill("Best in world")
   await page.getByPlaceholder("Example: apparel").fill("Electronics")
   await page.getByPlaceholder("Example: emerald").fill("Green")
-  await page.locator("//*[@id ='_R_2d9bn5rlb_-scenario']").selectOption("digital-goods")
+  await page.getByLabel('Scenario type').selectOption("digital-goods")
   await page.locator("//*[@type = 'submit']").click()
   await expect(page.locator("//*[normalize-space() = 'Phone Shop']")).toBeVisible()
 })
