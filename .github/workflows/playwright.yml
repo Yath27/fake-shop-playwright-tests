@@ -1,0 +1,76 @@
+﻿name: Playwright UI Tests
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  ui-tests:
+    name: Build fake-shop and run UI tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout Playwright tests
+        uses: actions/checkout@v5
+
+      - name: Checkout fake-shop app
+        uses: actions/checkout@v5
+        with:
+          repository: Yath27/fake-shop
+          ref: main
+          path: fake-shop
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 22.13.0
+          cache: npm
+
+      - name: Install pnpm
+        run: npm install --global pnpm@11.0.9
+
+      - name: Install Playwright project dependencies
+        run: npm ci
+
+      - name: Install Chromium and system dependencies
+        run: npx playwright install --with-deps chromium
+
+      - name: Install fake-shop dependencies
+        working-directory: fake-shop
+        run: pnpm install --frozen-lockfile
+
+      - name: Build fake-shop
+        working-directory: fake-shop
+        run: pnpm run build
+
+      - name: Start fake-shop and run UI tests
+        shell: bash
+        run: |
+          cd fake-shop
+          pnpm start > ../fake-shop.log 2>&1 &
+          app_pid=$!
+          trap 'kill "$app_pid" 2>/dev/null || true' EXIT
+          cd ..
+
+          for attempt in {1..30}; do
+            if curl --fail --silent http://localhost:3000/ > /dev/null; then
+              break
+            fi
+            sleep 2
+          done
+
+          if ! curl --fail --silent http://localhost:3000/ > /dev/null; then
+            cat fake-shop.log
+            exit 1
+          fi
+
+          npm test
+
