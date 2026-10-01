@@ -3,7 +3,7 @@
 export default defineConfig({
   testDir: './tests',
   use: {
-    baseURL: process.env.FAKE_SHOP_BASE_URL || 'http://localhost:3000',
+    baseURL: process.env.BASE_URL || 'http://localhost:3000',
     browserName: 'chromium',
   },
 });
