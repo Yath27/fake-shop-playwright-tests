@@ -24,6 +24,6 @@ test("create shops", async ({page}) => {
   await page.getByPlaceholder("Example: apparel").fill("Electronics")
   await page.getByPlaceholder("Example: emerald").fill("Green")
   await page.getByLabel('Scenario type').selectOption("digital-goods")
-  await page.locator("(//*[@type = 'button'])[2]").click()
+  await page.getByRole('button', { name: 'Create shop' }).click();
   await expect(page.locator("//*[normalize-space() = 'Phone Shop']")).toBeVisible()
 })
