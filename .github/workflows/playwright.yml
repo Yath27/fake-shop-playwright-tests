@@ -10,6 +10,12 @@ on:
   repository_dispatch:
     types:
       - vercel-preview-deployed
+  workflow_dispatch:
+    inputs:
+      deployment_url:
+        description: Vercel deployment URL to test (leave blank to use the configured branch URL)
+        required: false
+        type: string
 
 permissions:
   contents: read
@@ -36,9 +42,38 @@ jobs:
       - name: Install Chromium and system dependencies
         run: npx playwright install --with-deps chromium
 
+      - name: Resolve test URL
+        id: test-url
+        shell: bash
+        env:
+          DISPATCH_URL: ${{ github.event.client_payload.deployment_url }}
+          MANUAL_URL: ${{ inputs.deployment_url }}
+          BRANCH_URL: ${{ vars.FAKE_SHOP_PREVIEW_URL }}
+        run: |
+          test_url="$BRANCH_URL"
+
+          if [[ "$GITHUB_EVENT_NAME" == "repository_dispatch" ]]; then
+            test_url="$DISPATCH_URL"
+          elif [[ "$GITHUB_EVENT_NAME" == "workflow_dispatch" && -n "$MANUAL_URL" ]]; then
+            test_url="$MANUAL_URL"
+          fi
+
+          if [[ -z "$test_url" ]]; then
+            echo "No deployment URL provided. Set FAKE_SHOP_PREVIEW_URL or pass deployment_url." >&2
+            exit 1
+          fi
+
+          if [[ ! "$test_url" =~ ^https:// ]]; then
+            echo "Deployment URL must start with https://" >&2
+            exit 1
+          fi
+
+          echo "base_url=$test_url" >> "$GITHUB_OUTPUT"
+          echo "Testing against: $test_url"
+
       - name: Run Playwright tests against Vercel Preview
         env:
-          BASE_URL: ${{ github.event_name == 'repository_dispatch' && github.event.client_payload.deployment_url || vars.FAKE_SHOP_PREVIEW_URL }}
+          BASE_URL: ${{ steps.test-url.outputs.base_url }}
           VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
         run: npm test
 
