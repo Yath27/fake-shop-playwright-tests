@@ -18,7 +18,7 @@ test("Sample data load", async ({page}) => {
 
 test("create shops", async ({page}) => {
   await page.locator("(//*[normalize-space() = 'Shops'])[1]").click()
-  await page.getByPlaceholder("Demo storefront").fill("Phone Shop")
+  await page.getByPlaceholder("Shop name").fill("Phone Shop")
   await page.getByPlaceholder("Customer-facing label").fill("ZS Phones")
   await page.getByPlaceholder("Short shop description").fill("Best in world")
   await page.getByPlaceholder("Example: apparel").fill("Electronics")
