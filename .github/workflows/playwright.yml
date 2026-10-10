@@ -13,7 +13,7 @@ on:
   workflow_dispatch:
     inputs:
       deployment_url:
-        description: Vercel deployment URL to test (leave blank to use the configured branch URL)
+        description: Optional deployment URL to test (leave blank to discover the latest Ready deployment)
         required: false
         type: string
 
@@ -48,30 +48,52 @@ jobs:
         env:
           DISPATCH_URL: ${{ github.event.client_payload.deployment_url }}
           MANUAL_URL: ${{ inputs.deployment_url }}
-          BRANCH_URL: ${{ vars.FAKE_SHOP_PREVIEW_URL }}
+          VERCEL_API_TOKEN: ${{ secrets.VERCEL_API_TOKEN }}
+          VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
+          VERCEL_TEAM_ID: ${{ vars.VERCEL_TEAM_ID }}
         run: |
-          test_url="$BRANCH_URL"
+          test_url=""
 
           if [[ "$GITHUB_EVENT_NAME" == "repository_dispatch" ]]; then
             test_url="$DISPATCH_URL"
           elif [[ "$GITHUB_EVENT_NAME" == "workflow_dispatch" && -n "$MANUAL_URL" ]]; then
             test_url="$MANUAL_URL"
+          else
+            if [[ -z "$VERCEL_API_TOKEN" || -z "$VERCEL_PROJECT_ID" ]]; then
+              echo "Set VERCEL_API_TOKEN and VERCEL_PROJECT_ID to discover the latest Ready deployment." >&2
+              exit 1
+            fi
+
+            api_args=(
+              --data-urlencode "projectId=$VERCEL_PROJECT_ID"
+              --data-urlencode "state=READY"
+              --data-urlencode "limit=100"
+            )
+            if [[ -n "$VERCEL_TEAM_ID" ]]; then
+              api_args+=(--data-urlencode "teamId=$VERCEL_TEAM_ID")
+            fi
+
+            deployments=$(curl --fail --silent --show-error --get \
+              --header "Authorization: Bearer $VERCEL_API_TOKEN" \
+              "https://api.vercel.com/v7/deployments" \
+              "${api_args[@]}")
+
+            test_url=$(jq -r '([.deployments[] | select(.state == "READY" and .url != null)] | max_by(.createdAt | tonumber) | .url) // empty' <<< "$deployments")
           fi
 
           if [[ -z "$test_url" ]]; then
-            echo "No deployment URL provided. Set FAKE_SHOP_PREVIEW_URL or pass deployment_url." >&2
+            echo "No Ready Vercel deployment URL was found." >&2
             exit 1
           fi
 
           if [[ ! "$test_url" =~ ^https:// ]]; then
-            echo "Deployment URL must start with https://" >&2
-            exit 1
+            test_url="https://$test_url"
           fi
 
           echo "base_url=$test_url" >> "$GITHUB_OUTPUT"
           echo "Testing against: $test_url"
 
-      - name: Run Playwright tests against Vercel Preview
+      - name: Run Playwright tests against Vercel deployment
         env:
           BASE_URL: ${{ steps.test-url.outputs.base_url }}
           VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
