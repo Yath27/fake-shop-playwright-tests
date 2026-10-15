@@ -67,7 +67,6 @@ jobs:
             api_args=(
               --data-urlencode "projectId=$VERCEL_PROJECT_ID"
               --data-urlencode "state=READY"
-              --data-urlencode "target=preview"
               --data-urlencode "limit=100"
             )
             if [[ -n "$VERCEL_TEAM_ID" ]]; then
@@ -79,7 +78,7 @@ jobs:
               "https://api.vercel.com/v7/deployments" \
               "${api_args[@]}")
 
-            test_url=$(jq -r '([.deployments[] | select(.state == "READY" and .target == "preview" and .url != null)] | max_by(.createdAt | tonumber) | .url) // empty' <<< "$deployments")
+            test_url=$(jq -r '([.deployments[] | select(.state == "READY" and (.target == null or .target == "preview") and .url != null)] | max_by(.createdAt | tonumber) | .url) // empty' <<< "$deployments")
           fi
 
           if [[ -z "$test_url" ]]; then
